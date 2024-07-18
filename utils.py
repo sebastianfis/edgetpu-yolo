@@ -82,6 +82,7 @@ def get_image_tensor(img, max_size, debug=False):
 
 
 def decode_bbox(preds, img_shape):
+    print(o.shape for o in preds)
     num_classes = next((o.shape[2] for o in preds if o.shape[2] != 64), -1)
     assert num_classes != -1, 'cannot infer postprocessor inputs via output shape if there are 64 classes'
     pos = [

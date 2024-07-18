@@ -100,6 +100,7 @@ def decode_bbox(preds, img_shape):
     strides = [
         int(np.sqrt(img_shape[-2] * img_shape[-1] / preds[p].shape[1])) for p in pos if preds[p].shape[2] != 64]
     print("strides :" + str(strides))
+    # FIXME: strides vector starts with 0!
     dims = [(img_h // s, img_w // s) for s in strides if s > 0]
     fake_feats = [np.zeros((1, 1, h, w)) for h, w in dims]
     anchors, strides = (x.transpose(0, 1)
@@ -152,11 +153,11 @@ def make_anchors(feats, strides, grid_cell_offset=0.5):
     """Generate anchors from features."""
     anchor_points, stride_tensor = [], []
     assert feats is not None
-    dtype, device = feats[0].dtype, feats[0].device
+    dtype = feats[0].dtype
     for i, stride in enumerate(strides):
         _, _, h, w = feats[i].shape
-        sx = np.arange(end=w, device=device, dtype=dtype) + grid_cell_offset  # shift x
-        sy = np.arange(end=h, device=device, dtype=dtype) + grid_cell_offset  # shift y
+        sx = np.arange(end=w, dtype=dtype) + grid_cell_offset  # shift x
+        sy = np.arange(end=h, dtype=dtype) + grid_cell_offset  # shift y
         sy, sx = np.meshgrid(sy, sx)
         anchor_points.append(np.stack((sx, sy), -1).view(-1, 2))
         stride_tensor.append(np.full((h * w, 1), stride, dtype=dtype, device=device))

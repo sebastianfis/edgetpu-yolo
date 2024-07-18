@@ -91,8 +91,8 @@ def decode_bbox(preds, img_shape):
                              key=lambda x: (x[1].shape[2] if num_classes > 64 else -x[1].shape[2], -x[1].shape[1]))]
 
     x = np.transpose(np.concatenate([
-            np.concatenate([preds[i] for i in pos[:len(pos) // 2]], dim=1),
-            np.concatenate([preds[i] for i in pos[len(pos) // 2:]], dim=1)], dim=2), [0, 2, 1])
+            np.concatenate([preds[i] for i in pos[:len(pos) // 2]], axis=1),
+            np.concatenate([preds[i] for i in pos[len(pos) // 2:]], axis=1)], axis=2), [0, 2, 1])
     reg_max = (x.shape[1] - num_classes) // 4
 
     img_h, img_w = img_shape[-2], img_shape[-1]

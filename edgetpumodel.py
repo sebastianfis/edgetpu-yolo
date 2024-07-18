@@ -172,8 +172,7 @@ class EdgeTPUModel:
             result = (common.output_tensor(self.interpreter, 0).astype('float32') - self.output_zero) * self.output_scale
         else:
             result = []
-            for i in range(5):
-                print(str(i))
+            for i in range(6):
                 result.append((common.output_tensor(self.interpreter, i).astype('float32') - self.output_zero) * self.output_scale)
         if self.v8:
             result = np.transpose(result, [0, 2, 1])  # transpose for yolov8 models

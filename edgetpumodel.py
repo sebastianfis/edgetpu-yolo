@@ -171,11 +171,12 @@ class EdgeTPUModel:
         if not self.sep_output:
             result = (common.output_tensor(self.interpreter, 0).astype('float32') - self.output_zero) * self.output_scale
         else:
-            result = (common.output_tensor(self.interpreter).astype('float32') - self.output_zero) * self.output_scale
+            result =[]
+            for i in range(5):
+                result.append(common.output_tensor(self.interpreter).astype('float32') - self.output_zero) * self.output_scale
         if self.v8:
             result = np.transpose(result, [0, 2, 1])  # transpose for yolov8 models
         if self.sep_output:
-            result = np.transpose(result, [0, 2, 1])
             result = decode_bbox(result, x.shape)
 
         self.inference_time = time.time() - tstart

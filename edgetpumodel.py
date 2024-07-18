@@ -171,7 +171,7 @@ class EdgeTPUModel:
         if not self.sep_output:
             result = (common.output_tensor(self.interpreter, 0).astype('float32') - self.output_zero) * self.output_scale
         else:
-            result =[]
+            result = []
             for i in range(5):
                 result.append(common.output_tensor(self.interpreter, i).astype('float32') - self.output_zero) * self.output_scale
         if self.v8:

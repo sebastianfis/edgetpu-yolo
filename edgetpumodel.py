@@ -172,6 +172,7 @@ class EdgeTPUModel:
         if self.v8:
             result = np.transpose(result, [0, 2, 1])  # transpose for yolov8 models
         if self.sep_output:
+            result = np.transpose(result, [0, 2, 1])
             result = decode_bbox(result, x.shape)
 
         self.inference_time = time.time() - tstart
@@ -179,7 +180,7 @@ class EdgeTPUModel:
         if with_nms:
         
             tstart = time.time()
-            if self.v8:
+            if self.v8 or self.sep_output:
                 nms_result = non_max_suppresion_v8(result, self.conf_thresh, self.iou_thresh, self.filter_classes,
                                                    self.agnostic_nms, max_det=self.max_det)
             else:

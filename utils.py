@@ -156,8 +156,8 @@ def make_anchors(feats, strides, grid_cell_offset=0.5):
     dtype = feats[0].dtype
     for i, stride in enumerate(strides):
         _, _, h, w = feats[i].shape
-        sx = np.arange(end=w, dtype=dtype) + grid_cell_offset  # shift x
-        sy = np.arange(end=h, dtype=dtype) + grid_cell_offset  # shift y
+        sx = np.arange(stop=w, dtype=dtype) + grid_cell_offset  # shift x
+        sy = np.arange(stop=h, dtype=dtype) + grid_cell_offset  # shift y
         sy, sx = np.meshgrid(sy, sx)
         anchor_points.append(np.stack((sx, sy), -1).view(-1, 2))
         stride_tensor.append(np.full((h * w, 1), stride, dtype=dtype, device=device))

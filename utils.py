@@ -81,6 +81,95 @@ def get_image_tensor(img, max_size, debug=False):
     return img, resized, pad
 
 
+def decode_bbox(preds, img_shape):
+    num_classes = next((o.shape[2] for o in preds if o.shape[2] != 64), -1)
+    assert num_classes != -1, 'cannot infer postprocessor inputs via output shape if there are 64 classes'
+    pos = [
+        i for i, _ in sorted(enumerate(preds),
+                             key=lambda x: (x[1].shape[2] if num_classes > 64 else -x[1].shape[2], -x[1].shape[1]))]
+
+    x = np.transpose(np.concatenate([
+            np.concatenate([preds[i] for i in pos[:len(pos) // 2]], dim=1),
+            np.concatenate([preds[i] for i in pos[len(pos) // 2:]], dim=1)], dim=2), [0, 2, 1])
+    reg_max = (x.shape[1] - num_classes) // 4
+
+    img_h, img_w = img_shape[-2], img_shape[-1]
+    strides = [
+        int(np.sqrt(img_shape[-2] * img_shape[-1] / preds[p].shape[1])) for p in pos if preds[p].shape[2] != 64]
+    dims = [(img_h // s, img_w // s) for s in strides]
+    fake_feats = [np.zeros((1, 1, h, w)) for h, w in dims]
+    anchors, strides = (x.transpose(0, 1)
+                        for x in make_anchors(fake_feats, strides, 0.5))  # generate anchors and strides
+    if reg_max > 1:
+       x = dfl(x[:, :-num_classes, :], reg_max)
+
+    dbox = dist2bbox(x, anchors.unsqueeze(0), xywh=True, dim=1) * strides
+    return np.concatenate((dbox, x[:, -num_classes:, :].sigmoid()), dim=1)
+
+def dfl(x, reg_max):
+    # def __init__(self, reg_max=16):
+    """Initialize a convolutional layer with a given number of input channels."""
+    conv = Conv2d(reg_max, 1, 1, bias=False)
+    param = np.arange(reg_max, dtype=np.float32)
+    conv.weight[:] = param.reshape(1, reg_max, 1, 1)
+
+    """Applies a transformer layer on input tensor 'x' and returns a tensor."""
+    b, _, a = x.shape  # batch, channels, anchors
+
+    x_reshaped = x.reshape(b, 4, reg_max, a)
+
+    # Transpose x to (b, reg_max, 4, a)
+    x_transposed = x_reshaped.transpose(0, 2, 1, 3)
+
+    # Apply softmax along axis 2 (originally axis 1 before transpose)
+    x_softmax = softmax(x_transposed, axis=2)
+
+    return conv.forward(x_softmax).reshape(b, 4, a)
+
+
+def softmax(x, axis):
+    """
+    Compute the softmax of each element along the specified axis of x.
+
+    Parameters:
+    x (numpy.ndarray): Input array.
+    axis (int): Axis along which to apply the softmax.
+
+    Returns:
+    numpy.ndarray: The array with softmax applied along the specified axis.
+    """
+    # Subtract the max for numerical stability
+    x_max = np.max(x, axis=axis, keepdims=True)
+    e_x = np.exp(x - x_max)
+    sum_e_x = np.sum(e_x, axis=axis, keepdims=True)
+    return e_x / sum_e_x
+
+def make_anchors(feats, strides, grid_cell_offset=0.5):
+    """Generate anchors from features."""
+    anchor_points, stride_tensor = [], []
+    assert feats is not None
+    dtype, device = feats[0].dtype, feats[0].device
+    for i, stride in enumerate(strides):
+        _, _, h, w = feats[i].shape
+        sx = np.arange(end=w, device=device, dtype=dtype) + grid_cell_offset  # shift x
+        sy = np.arange(end=h, device=device, dtype=dtype) + grid_cell_offset  # shift y
+        sy, sx = np.meshgrid(sy, sx)
+        anchor_points.append(np.stack((sx, sy), -1).view(-1, 2))
+        stride_tensor.append(np.full((h * w, 1), stride, dtype=dtype, device=device))
+    return np.concatenate(anchor_points), np.concatenate(stride_tensor)
+
+
+def dist2bbox(distance, anchor_points, xywh=True, dim=-1):
+    """Transform distance(ltrb) to box(xywh or xyxy)."""
+    lt, rb = distance.chunk(2, dim)
+    x1y1 = anchor_points - lt
+    x2y2 = anchor_points + rb
+    if xywh:
+        c_xy = (x1y1 + x2y2) / 2
+        wh = x2y2 - x1y1
+        return np.concatenate((c_xy, wh), dim)  # xywh bbox
+    return np.concatenate((x1y1, x2y2), dim)  # xyxy bbox
+
 
 def xyxy2xywh(x):
     # Convert nx4 boxes from [x1, y1, x2, y2] to [x, y, w, h] where xy1=top-left, xy2=bottom-right
@@ -90,7 +179,8 @@ def xyxy2xywh(x):
     y[:, 2] = x[:, 2] - x[:, 0]  # width
     y[:, 3] = x[:, 3] - x[:, 1]  # height
     return y
-    
+
+
 def coco80_to_coco91_class():  # converts 80-index (val2014) to 91-index (paper)
     # https://tech.amikelive.com/node-718/what-object-categories-labels-are-in-coco-dataset/
     # a = np.loadtxt('data/coco.names', dtype='str', delimiter='\n')
@@ -115,3 +205,36 @@ def save_one_json(predn, jdict, path, class_map):
                       'bbox': [round(x, 3) for x in b],
                       'score': round(p[4], 5)})
 
+class Conv2d:
+    def __init__(self, in_channels, out_channels, kernel_size, bias=True):
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.bias = bias
+
+        # Initialize weights
+        self.weight = np.zeros((out_channels, in_channels, kernel_size, kernel_size), dtype=np.float32)
+
+        if self.bias:
+            self.bias_term = np.zeros(out_channels, dtype=np.float32)
+        else:
+            self.bias_term = None
+
+    def forward(self, x):
+        # Naive implementation of forward pass
+        batch_size, in_channels, height, width = x.shape
+        out_height = height - self.kernel_size + 1
+        out_width = width - self.kernel_size + 1
+        output = np.zeros((batch_size, self.out_channels, out_height, out_width), dtype=np.float32)
+
+        for b in range(batch_size):
+            for o in range(self.out_channels):
+                for i in range(out_height):
+                    for j in range(out_width):
+                        for k in range(self.in_channels):
+                            output[b, o, i, j] += np.sum(
+                                x[b, k, i:i+self.kernel_size, j:j+self.kernel_size] * self.weight[o, k])
+                if self.bias:
+                    output[b, o] += self.bias_term[o]
+
+        return output

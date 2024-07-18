@@ -11,14 +11,15 @@ from nms import non_max_suppression, non_max_suppresion_v8
 import cv2
 import json
 
-from utils import plot_one_box, Colors, get_image_tensor
+from utils import plot_one_box, Colors, get_image_tensor, decode_bbox
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("EdgeTPUModel")
 
 class EdgeTPUModel:
 
-    def __init__(self, model_file, names_file, conf_thresh=0.25, iou_thresh=0.45, filter_classes=None, agnostic_nms=False, max_det=1000, v8=False):
+    def __init__(self, model_file, names_file, conf_thresh=0.25, iou_thresh=0.45, filter_classes=None,
+                 agnostic_nms=False, max_det=1000, v8=False, sep_output=False):
         """
         Creates an object for running a Yolov5 model on an EdgeTPU
         
@@ -44,6 +45,7 @@ class EdgeTPUModel:
         self.agnostic_nms = agnostic_nms
         self.max_det = max_det
         self.v8 = v8
+        self.sep_output = sep_output
         
         logger.info("Confidence threshold: {}".format(conf_thresh))
         logger.info("IOU threshold: {}".format(iou_thresh))
@@ -107,7 +109,9 @@ class EdgeTPUModel:
         logger.debug("Output zero: {}".format(self.output_zero))
         
         logger.info("Successfully loaded {}".format(self.model_file))
-    
+
+
+
     def get_image_size(self):
         """
         Returns the expected size of the input image tensor
@@ -124,6 +128,8 @@ class EdgeTPUModel:
     
         full_image, net_image, pad = get_image_tensor(image_path, self.input_size[0])
         pred = self.forward(net_image)
+        if self.sep_output:
+            pred = decode_bbox(pred, net_image.shape)
         
         base, ext = os.path.splitext(image_path)
         
@@ -132,7 +138,7 @@ class EdgeTPUModel:
         
         return det
 
-    def forward(self, x:np.ndarray, with_nms=True) -> np.ndarray:
+    def forward(self, x: np.ndarray, with_nms=True) -> np.ndarray:
         """
         Predict function using the EdgeTPU
 
@@ -164,8 +170,10 @@ class EdgeTPUModel:
         # Scale output
         result = (common.output_tensor(self.interpreter, 0).astype('float32') - self.output_zero) * self.output_scale
         if self.v8:
-            result = np.transpose(result, [0, 2, 1])  # tranpose for yolov8 models
-        
+            result = np.transpose(result, [0, 2, 1])  # transpose for yolov8 models
+        if self.sep_output:
+            result = decode_bbox(result, x.shape)
+
         self.inference_time = time.time() - tstart
         
         if with_nms:

@@ -104,7 +104,7 @@ def generate():
 			if not flag:
 				continue
 		# yield the output frame in the byte format
-		yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + 
+		yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' +
 			bytearray(encodedImage) + b'\r\n')
 
 
@@ -129,6 +129,7 @@ if __name__ == '__main__':
 	ap.add_argument("--device", type=int, default=1, help="Image capture device to run live detection")
 	ap.add_argument("--quiet", "-q", action='store_true', help="Disable logging (except errors)")
 	ap.add_argument("--v8", action='store_true', help="yolov8 model?")
+	ap.add_argument("--seperate_output", action='store_true', help="seperate output (degirum model)?")
 
 	args = ap.parse_args()
 	# start a thread that will perform motion detection
@@ -137,7 +138,8 @@ if __name__ == '__main__':
 		logger.disabled = True
 
 	logger.info("Opening stream on device: {}".format(args.device))
-	model = EdgeTPUModel(args.model, args.names, conf_thresh=args.conf_thresh, iou_thresh=args.iou_thresh, v8=args.v8)
+	model = EdgeTPUModel(args.model, args.names, conf_thresh=args.conf_thresh, iou_thresh=args.iou_thresh, v8=args.v8,
+						sep_output=args.seperate_output)
 
 	t = threading.Thread(target=detect_stream, args=(model, args.device))
 	t.daemon = True

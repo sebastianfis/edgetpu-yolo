@@ -82,8 +82,9 @@ def get_image_tensor(img, max_size, debug=False):
 
 
 def decode_bbox(preds, img_shape):
+    print("image shape:" + str(img_shape))
     for o in preds:
-        print(str(o.shape))
+        print("tensor shape:" + str(o.shape))
     num_classes = next((o.shape[2] for o in preds if o.shape[2] != 64), -1)
     assert num_classes != -1, 'cannot infer postprocessor inputs via output shape if there are 64 classes'
     pos = [
@@ -98,6 +99,7 @@ def decode_bbox(preds, img_shape):
     img_h, img_w = img_shape[-2], img_shape[-1]
     strides = [
         int(np.sqrt(img_shape[-2] * img_shape[-1] / preds[p].shape[1])) for p in pos if preds[p].shape[2] != 64]
+    print("strides :" + str(strides))
     dims = [(img_h // s, img_w // s) for s in strides]
     fake_feats = [np.zeros((1, 1, h, w)) for h, w in dims]
     anchors, strides = (x.transpose(0, 1)

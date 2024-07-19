@@ -81,35 +81,43 @@ def get_image_tensor(img, max_size, debug=False):
     return img, resized, pad
 
 
+def permute(x, order):
+    return np.transpose(x, axes=order)
+
+
+def cat(arrays, axis):
+    return np.concatenate(arrays, axis=axis)
+
+
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+
+
 def decode_bbox(preds, img_shape):
-    print("image shape:" + str(img_shape))
-    for o in preds:
-        print("tensor shape:" + str(o.shape))
     num_classes = next((o.shape[2] for o in preds if o.shape[2] != 64), -1)
     assert num_classes != -1, 'cannot infer postprocessor inputs via output shape if there are 64 classes'
     pos = [
         i for i, _ in sorted(enumerate(preds),
                              key=lambda x: (x[1].shape[2] if num_classes > 64 else -x[1].shape[2], -x[1].shape[1]))]
-
-    x = np.transpose(np.concatenate([
-            np.concatenate([preds[i] for i in pos[:len(pos) // 2]], axis=1),
-            np.concatenate([preds[i] for i in pos[len(pos) // 2:]], axis=1)], axis=2), [0, 2, 1])
+    x = permute(
+        cat([
+            cat([preds[i] for i in pos[:len(pos) // 2]], 1),
+            cat([preds[i] for i in pos[len(pos) // 2:]], 1)], 2), (0, 2, 1))
     reg_max = (x.shape[1] - num_classes) // 4
-
     img_h, img_w = img_shape[-2], img_shape[-1]
     strides = [
         int(np.sqrt(img_shape[-2] * img_shape[-1] / preds[p].shape[1])) for p in pos if preds[p].shape[2] != 64]
-    print("strides :" + str(strides))
-    # NOTE: strides vector starts with 0! Therefor check is included below
-    dims = [(img_h // s, img_w // s) for s in strides if s > 0]
-    fake_feats = [np.zeros((1, 1, h, w)) for h, w in dims]
-    anchors, strides = (x.transpose(0, 1)
-                        for x in make_anchors(fake_feats, strides, 0.5))  # generate anchors and strides
-    if reg_max > 1:
-       x = dfl(x[:, :-num_classes, :], reg_max)
 
-    dbox = dist2bbox(x, anchors.unsqueeze(0), xywh=True, dim=1) * strides
-    return np.concatenate((dbox, x[:, -num_classes:, :].sigmoid()), dim=1)
+    dims = [(img_h // s, img_w // s) for s in strides]
+    fake_feats = [np.zeros((1, 1, h, w)) for h, w in dims]
+    anchors, strides = (np.transpose(x, (1, 0, 2, 3))
+                        for x in make_anchors(fake_feats, strides, 0.5))  # Placeholder for make_anchors function
+
+    dbox = dist2bbox(dfl(x[:, :-num_classes, :], reg_max), anchors, xywh=True,
+                     dim=1) * strides  # Placeholder for dist2bbox function
+
+    return cat((dbox, sigmoid(x[:, -num_classes:, :])), 1)
+
 
 def dfl(x, reg_max):
     # def __init__(self, reg_max=16):
@@ -149,31 +157,34 @@ def softmax(x, axis):
     sum_e_x = np.sum(e_x, axis=axis, keepdims=True)
     return e_x / sum_e_x
 
+
 def make_anchors(feats, strides, grid_cell_offset=0.5):
     """Generate anchors from features."""
     anchor_points, stride_tensor = [], []
     assert feats is not None
-    dtype = feats[0].dtype
     for i, stride in enumerate(strides):
         _, _, h, w = feats[i].shape
-        sx = np.arange(start=0, stop=w, dtype=dtype) + grid_cell_offset  # shift x
-        sy = np.arange(start=0, stop=h, dtype=dtype) + grid_cell_offset  # shift y
-        sy, sx = np.meshgrid(sy, sx)
+        sx = np.arange(w) + grid_cell_offset  # shift x
+        sy = np.arange(h) + grid_cell_offset  # shift y
+        sy, sx = np.meshgrid(sy, sx, indexing='ij')
         anchor_points.append(np.stack((sx, sy), -1).reshape(-1, 2))
-        stride_tensor.append(np.full((h * w, 1), stride, dtype=dtype))
+        stride_tensor.append(np.full((h * w, 1), stride))
     return np.concatenate(anchor_points), np.concatenate(stride_tensor)
 
 
 def dist2bbox(distance, anchor_points, xywh=True, dim=-1):
     """Transform distance(ltrb) to box(xywh or xyxy)."""
-    lt, rb = distance.chunk(2, dim)
+    if dim == -1:
+        dim = distance.shape[-1] // 2
+    lt = distance[..., :dim]
+    rb = distance[..., dim:]
     x1y1 = anchor_points - lt
     x2y2 = anchor_points + rb
     if xywh:
         c_xy = (x1y1 + x2y2) / 2
         wh = x2y2 - x1y1
-        return np.concatenate((c_xy, wh), dim)  # xywh bbox
-    return np.concatenate((x1y1, x2y2), dim)  # xyxy bbox
+        return np.concatenate((c_xy, wh), axis=-1)  # xywh bbox
+    return np.concatenate((x1y1, x2y2), axis=-1)  # xyxy bbox
 
 
 def xyxy2xywh(x):

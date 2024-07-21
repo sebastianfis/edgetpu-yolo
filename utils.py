@@ -93,8 +93,10 @@ def decode_bbox(preds, img_shape):
             np.concatenate([preds[i] for i in pos[len(pos) // 2:]], axis=1)], axis=2), axes=(0, 2, 1))
     reg_max = (x.shape[1] - num_classes) // 4
     img_h, img_w = img_shape[-2], img_shape[-1]
-    print(preds[p].shape[1] for p in pos)
-    print(preds[p].shape[1] for p in pos)
+    for p in pos:
+        print(p)
+        print(preds[p].shape[1])
+        print(preds[p].shape[1])
 
     strides = [
         int(np.sqrt(img_shape[-2] * img_shape[-1] / preds[p].shape[1])) for p in pos if preds[p].shape[2] != 64]

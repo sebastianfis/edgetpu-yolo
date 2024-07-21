@@ -103,7 +103,7 @@ def decode_bbox(preds, img_shape):
     for s in strides:
         print("s: " + str(s))
         if s == 0:
-            s=1
+            s = 1
 
     dims = [(img_h // s, img_w // s) for s in strides]
     fake_feats = [np.zeros((1, 1, h, w)) for h, w in dims]

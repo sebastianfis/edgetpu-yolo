@@ -100,7 +100,8 @@ def decode_bbox(preds, img_shape):
 
     strides = [
         int(np.sqrt(img_shape[-2] * img_shape[-1] / preds[p].shape[1])) for p in pos if preds[p].shape[2] != 64]
-
+    for s in strides:
+        print("s: " + str(s))
     dims = [(img_h // s, img_w // s) for s in strides]
     fake_feats = [np.zeros((1, 1, h, w)) for h, w in dims]
     anchors, strides = (np.transpose(x, (1, 0, 2, 3))

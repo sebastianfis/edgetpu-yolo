@@ -81,30 +81,21 @@ def get_image_tensor(img, max_size, debug=False):
     return img, resized, pad
 
 
-def permute(x, order):
-    return np.transpose(x, axes=order)
-
-
-def cat(arrays, axis):
-    return np.concatenate(arrays, axis=axis)
-
-
-def sigmoid(x):
-    return 1 / (1 + np.exp(-x))
-
-
 def decode_bbox(preds, img_shape):
     num_classes = next((o.shape[2] for o in preds if o.shape[2] != 64), -1)
     assert num_classes != -1, 'cannot infer postprocessor inputs via output shape if there are 64 classes'
     pos = [
         i for i, _ in sorted(enumerate(preds),
                              key=lambda x: (x[1].shape[2] if num_classes > 64 else -x[1].shape[2], -x[1].shape[1]))]
-    x = permute(
-        cat([
-            cat([preds[i] for i in pos[:len(pos) // 2]], 1),
-            cat([preds[i] for i in pos[len(pos) // 2:]], 1)], 2), (0, 2, 1))
+    x = np.transpose(
+        np.concatenate([
+            np.concatenate([preds[i] for i in pos[:len(pos) // 2]], axis=1),
+            np.concatenate([preds[i] for i in pos[len(pos) // 2:]], axis=1)], axis=2), axes=(0, 2, 1))
     reg_max = (x.shape[1] - num_classes) // 4
     img_h, img_w = img_shape[-2], img_shape[-1]
+    print(preds[p].shape[1] for p in pos)
+    print(preds[p].shape[1] for p in pos)
+
     strides = [
         int(np.sqrt(img_shape[-2] * img_shape[-1] / preds[p].shape[1])) for p in pos if preds[p].shape[2] != 64]
 
@@ -116,7 +107,7 @@ def decode_bbox(preds, img_shape):
     dbox = dist2bbox(dfl(x[:, :-num_classes, :], reg_max), anchors, xywh=True,
                      dim=1) * strides  # Placeholder for dist2bbox function
 
-    return cat((dbox, sigmoid(x[:, -num_classes:, :])), 1)
+    return np.concatenate((dbox, 1 / (1 + np.exp(-x[:, -num_classes:, :]))), axis=1)
 
 
 def dfl(x, reg_max):

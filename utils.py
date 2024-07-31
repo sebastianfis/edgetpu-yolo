@@ -176,6 +176,8 @@ def make_anchors(feats, strides, grid_cell_offset=0.5):
 
 def dist2bbox(distance, anchor_points, xywh=True, dim=-1):
     """Transform distance(ltrb) to box(xywh or xyxy)."""
+    for i, i_shape in enumerate(distance):
+        print("distance (" + str(i) + "): " + str(i_shape))
     if dim == -1:
         dim = distance.shape[-1] // 2
     lt = distance[..., :dim]

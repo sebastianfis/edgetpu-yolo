@@ -91,15 +91,17 @@ def decode_bbox(preds, img_shape):
         np.concatenate([
             np.concatenate([preds[i] for i in pos[:len(pos) // 2]], axis=1),
             np.concatenate([preds[i] for i in pos[len(pos) // 2:]], axis=1)], axis=2), axes=(0, 2, 1))
+    for i, i_shape in enumerate(x.shape):
+        print("img (" + str(i) + "): " + str(i_shape))
     reg_max = (x.shape[1] - num_classes) // 4
     img_h, img_w = img_shape[-3], img_shape[-2]
-    for i, i_shape in enumerate(img_shape):
-        print("img (" + str(i) + "): " + str(i_shape))
-
-    for p in pos:
-        print("p: " + str(p))
-        print("preds[p].shape[1]: " + str(preds[p].shape[1]))
-        print("preds[p].shape[2]: " + str(preds[p].shape[2]))
+    # for i, i_shape in enumerate(img_shape):
+    #     print("img (" + str(i) + "): " + str(i_shape))
+    #
+    # for p in pos:
+    #     print("p: " + str(p))
+    #     print("preds[p].shape[1]: " + str(preds[p].shape[1]))
+    #     print("preds[p].shape[2]: " + str(preds[p].shape[2]))
 
     strides = []
     for p in pos:
@@ -114,7 +116,7 @@ def decode_bbox(preds, img_shape):
     fake_feats = [np.zeros((1, 1, h, w)) for h, w in dims]
     anchors, strides = (np.transpose(x, (1, 0))
                         for x in make_anchors(fake_feats, strides, 0.5))  # Placeholder for make_anchors function
-
+    # FIXME: Bis hier sind die Ergebnisse vergleichbar!!!
     dbox = dist2bbox(dfl(x[:, :-num_classes, :], reg_max), anchors, xywh=True,
                      dim=1) * strides  # Placeholder for dist2bbox function
 

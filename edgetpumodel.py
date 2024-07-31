@@ -11,7 +11,7 @@ from nms import non_max_suppression, non_max_suppresion_v8
 import cv2
 import json
 
-from utils import plot_one_box, Colors, get_image_tensor, decode_bbox
+from utils import plot_one_box, Colors, get_image_tensor, Seperate_Output_Decoder
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("EdgeTPUModel")
@@ -46,6 +46,8 @@ class EdgeTPUModel:
         self.max_det = max_det
         self.v8 = v8
         self.sep_output = sep_output
+        if self.sep_output:
+            self.decoder = Seperate_Output_Decoder()
         
         logger.info("Confidence threshold: {}".format(conf_thresh))
         logger.info("IOU threshold: {}".format(iou_thresh))
@@ -129,7 +131,9 @@ class EdgeTPUModel:
         full_image, net_image, pad = get_image_tensor(image_path, self.input_size[0])
         pred = self.forward(net_image)
         if self.sep_output:
-            pred = decode_bbox(pred, net_image.shape)
+            if not self.decoder.initialized:
+                self.decoder.initialize(pred, net_image.shape)
+            pred = self.decoder.decode_bbox(pred)
         
         base, ext = os.path.splitext(image_path)
         
@@ -177,7 +181,9 @@ class EdgeTPUModel:
         if self.v8:
             result = np.transpose(result, [0, 2, 1])  # transpose for yolov8 models
         if self.sep_output:
-            result = decode_bbox(result, x.shape)
+            if not self.decoder.initialized:
+                self.decoder.initialize(result, x.shape)
+            result = self.decoder.decode_bbox(result)
 
         self.inference_time = time.time() - tstart
         

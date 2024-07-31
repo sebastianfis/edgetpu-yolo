@@ -81,6 +81,79 @@ def get_image_tensor(img, max_size, debug=False):
     return img, resized, pad
 
 
+class Seperate_Output_Decoder:
+    def __init__(self):
+        self.b = None
+        self.a = None
+        self.conv = None
+        self.strides = None
+        self.anchors = None
+        self.dims = None
+        self.img_h = None
+        self.img_w = None
+        self.reg_max = None
+        self.pos = None
+        self.num_classes = None
+        self.initialized = False
+    
+    def initialize(self, preds, img_shape):
+        # use first prediction to calculate fixed values!
+        self.num_classes = next((o.shape[2] for o in preds if o.shape[2] != 64), -1)
+        assert self.num_classes != -1, 'cannot infer postprocessor inputs via output shape if there are 64 classes'
+        self.pos = [
+            i for i, _ in sorted(enumerate(preds),
+                                 key=lambda x: (x[1].shape[2] if self.num_classes > 64 
+                                                else -x[1].shape[2], -x[1].shape[1]))]
+        x = np.transpose(
+            np.concatenate([
+                np.concatenate([preds[i] for i in self.pos[:len(self.pos) // 2]], axis=1),
+                np.concatenate([preds[i] for i in self.pos[len(self.pos) // 2:]], axis=1)], axis=2), axes=(0, 2, 1))
+        self.reg_max = (x.shape[1] - self.num_classes) // 4
+        self.img_h, self.img_w = img_shape[-3], img_shape[-2]
+        strides = []
+        for p in self.pos:
+            if preds[p].shape[2] != 64:
+                strides.append(int(np.sqrt(self.img_h * self.img_w / preds[p].shape[1])))
+
+        for i, s in enumerate(strides):
+            print("s: " + str(strides[i]))
+
+        self.dims = [(self.img_h // s, self.img_w // s) for s in strides]
+        fake_feats = [np.zeros((1, 1, h, w)) for h, w in self.dims]
+        self.anchors, self.strides = (np.transpose(x, (1, 0))
+                            for x in make_anchors(fake_feats, strides, 0.5))
+        """Initialize a convolutional layer with a given number of input channels."""
+        self.conv = Conv2d(self.reg_max, 1, 1, bias=False)
+        param = np.arange(self.reg_max, dtype=np.float32)
+        self.conv.weight[:] = param.reshape(1, self.reg_max, 1, 1)
+        self.b, _, self.a = x.shape
+
+        self.initialized=True
+
+    def dfl(self, x):
+        """Applies a transformer layer on input tensor 'x' and returns a tensor."""
+        x_reshaped = x.reshape(self.b, 4, self.reg_max, self.a)
+
+        # Transpose x to (b, reg_max, 4, a)
+        x_transposed = x_reshaped.transpose(0, 2, 1, 3)
+
+        # Apply softmax along axis 2 (originally axis 1 before transpose)
+        x_softmax = softmax(x_transposed, axis=2)
+
+        return self.conv.forward(x_softmax).reshape(self.b, 4, self.a)
+
+    def decode_bbox(self, preds):
+        x = np.transpose(
+            np.concatenate([
+                np.concatenate([preds[i] for i in self.pos[:len(self.pos) // 2]], axis=1),
+                np.concatenate([preds[i] for i in self.pos[len(self.pos) // 2:]], axis=1)], axis=2), axes=(0, 2, 1))
+        # FIXME: Bis hier sind die Ergebnisse vergleichbar!!!
+        dbox = dist2bbox(self.dfl(x[:, :-self.num_classes, :]), self.anchors, xywh=True,
+                         dim=1) * self.strides  # Placeholder for dist2bbox function
+
+        return np.concatenate((dbox, 1 / (1 + np.exp(-x[:, -self.num_classes:, :]))), axis=1)
+    
+
 def decode_bbox(preds, img_shape):
     num_classes = next((o.shape[2] for o in preds if o.shape[2] != 64), -1)
     assert num_classes != -1, 'cannot infer postprocessor inputs via output shape if there are 64 classes'
@@ -91,8 +164,6 @@ def decode_bbox(preds, img_shape):
         np.concatenate([
             np.concatenate([preds[i] for i in pos[:len(pos) // 2]], axis=1),
             np.concatenate([preds[i] for i in pos[len(pos) // 2:]], axis=1)], axis=2), axes=(0, 2, 1))
-    for i, i_shape in enumerate(x.shape):
-        print("img (" + str(i) + "): " + str(i_shape))
     reg_max = (x.shape[1] - num_classes) // 4
     img_h, img_w = img_shape[-3], img_shape[-2]
     # for i, i_shape in enumerate(img_shape):
@@ -116,32 +187,13 @@ def decode_bbox(preds, img_shape):
     fake_feats = [np.zeros((1, 1, h, w)) for h, w in dims]
     anchors, strides = (np.transpose(x, (1, 0))
                         for x in make_anchors(fake_feats, strides, 0.5))  # Placeholder for make_anchors function
-    # FIXME: Bis hier sind die Ergebnisse vergleichbar!!!
+
     dbox = dist2bbox(dfl(x[:, :-num_classes, :], reg_max), anchors, xywh=True,
                      dim=1) * strides  # Placeholder for dist2bbox function
 
     return np.concatenate((dbox, 1 / (1 + np.exp(-x[:, -num_classes:, :]))), axis=1)
 
 
-def dfl(x, reg_max):
-    # def __init__(self, reg_max=16):
-    """Initialize a convolutional layer with a given number of input channels."""
-    conv = Conv2d(reg_max, 1, 1, bias=False)
-    param = np.arange(reg_max, dtype=np.float32)
-    conv.weight[:] = param.reshape(1, reg_max, 1, 1)
-
-    """Applies a transformer layer on input tensor 'x' and returns a tensor."""
-    b, _, a = x.shape  # batch, channels, anchors
-
-    x_reshaped = x.reshape(b, 4, reg_max, a)
-
-    # Transpose x to (b, reg_max, 4, a)
-    x_transposed = x_reshaped.transpose(0, 2, 1, 3)
-
-    # Apply softmax along axis 2 (originally axis 1 before transpose)
-    x_softmax = softmax(x_transposed, axis=2)
-
-    return conv.forward(x_softmax).reshape(b, 4, a)
 
 
 def softmax(x, axis):

@@ -177,7 +177,7 @@ class EdgeTPUModel:
         if self.v8:
             result = np.transpose(result, [0, 2, 1])  # transpose for yolov8 models
         if self.sep_output:
-            result = decode_bbox(result, x.shape)
+            result = decode_bbox(result, x.shape[1:])
 
         self.inference_time = time.time() - tstart
         

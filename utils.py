@@ -93,8 +93,9 @@ def decode_bbox(preds, img_shape):
             np.concatenate([preds[i] for i in pos[len(pos) // 2:]], axis=1)], axis=2), axes=(0, 2, 1))
     reg_max = (x.shape[1] - num_classes) // 4
     img_h, img_w = img_shape[-2], img_shape[-1]
-    print("img_h: " + str(img_h))
-    print("img_w: " + str(img_w))
+    for i, i_shape in enumerate(img_shape):
+        print("img (" + str(i) + "): " + str(i_shape))
+
     for p in pos:
         print("p: " + str(p))
         print("preds[p].shape[1]: " + str(preds[p].shape[1]))

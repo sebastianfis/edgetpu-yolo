@@ -129,7 +129,7 @@ class EdgeTPUModel:
         full_image, net_image, pad = get_image_tensor(image_path, self.input_size[0])
         pred = self.forward(net_image)
         if self.sep_output:
-            pred = decode_bbox(pred, net_image.shape)
+            pred = decode_bbox(pred, net_image.shape[1:])
         
         base, ext = os.path.splitext(image_path)
         

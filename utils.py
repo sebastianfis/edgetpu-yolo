@@ -98,11 +98,12 @@ def decode_bbox(preds, img_shape):
         print("preds[p].shape[1]: " + str(preds[p].shape[1]))
         print("preds[p].shape[2]: " + str(preds[p].shape[2]))
 
-    strides = [
-        int(np.sqrt(img_shape[-2] * img_shape[-1] / preds[p].shape[1])) for p in pos if preds[p].shape[2] != 64]
+    strides = []
+    for p in pos:
+        if preds[p].shape[2] != 64:
+            strides.append(int(np.sqrt(img_shape[-2] * img_shape[-1] / preds[p].shape[1])))
+
     for i, s in enumerate(strides):
-        if s == 0:
-            strides[i] = 1
         print("s: " + str(strides[i]))
 
     dims = [(img_h // s, img_w // s) for s in strides]

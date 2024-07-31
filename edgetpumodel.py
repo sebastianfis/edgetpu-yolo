@@ -129,7 +129,7 @@ class EdgeTPUModel:
         full_image, net_image, pad = get_image_tensor(image_path, self.input_size[0])
         pred = self.forward(net_image)
         if self.sep_output:
-            pred = decode_bbox(pred, net_image.shape[1:])
+            pred = decode_bbox(pred, net_image.shape)
         
         base, ext = os.path.splitext(image_path)
         
@@ -177,7 +177,7 @@ class EdgeTPUModel:
         if self.v8:
             result = np.transpose(result, [0, 2, 1])  # transpose for yolov8 models
         if self.sep_output:
-            result = decode_bbox(result, x.shape[1:])
+            result = decode_bbox(result, x.shape)
 
         self.inference_time = time.time() - tstart
         

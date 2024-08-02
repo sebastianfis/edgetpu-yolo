@@ -163,7 +163,7 @@ class EdgeTPUModel:
         
         # Scale input, conversion is: real = (int_8 - zero)*scale
         x = (x/self.input_scale) + self.input_zero
-        if self.v8:
+        if self.v8 and not self.sep_output:
             x = x[np.newaxis].astype(np.int8)
         else:
             x = x[np.newaxis].astype(np.uint8)

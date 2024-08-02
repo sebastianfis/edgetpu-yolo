@@ -108,9 +108,10 @@ class EdgeTPUModel:
         # Check against small epsilon to avoid comparing float/int
         if self.input_scale < 1e-9:
             self.input_scale = 1.0
-        
-        if self.output_scale < 1e-9:
-            self.output_scale = 1.0
+
+        for ii in range(len(self.output_scale)):
+            if self.output_scale[ii] < 1e-9:
+                self.output_scale[ii] = 1.0
     
         logger.debug("Input scale: {}".format(self.input_scale))
         logger.debug("Input zero: {}".format(self.input_zero))

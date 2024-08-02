@@ -122,6 +122,7 @@ class Seperate_Output_Decoder:
         fake_feats = [np.zeros((1, 1, h, w)) for h, w in self.dims]
         self.anchors, self.strides = (np.transpose(x, (1, 0))
                             for x in make_anchors(fake_feats, strides, 0.5))
+        self.anchors=np.expand_dims(self.anchors, 0)
         """Initialize a convolutional layer with a given number of input channels."""
         self.conv = Conv2d(self.reg_max, 1, 1, bias=False)
         param = np.arange(self.reg_max, dtype=np.float32)
@@ -160,22 +161,6 @@ class Seperate_Output_Decoder:
                 np.concatenate([preds[i] for i in self.pos[:len(self.pos) // 2]], axis=1),
                 np.concatenate([preds[i] for i in self.pos[len(self.pos) // 2:]], axis=1)], axis=2), axes=(0, 2, 1))
         # FIXME: Bis hier sind die Ergebnisse vergleichbar!!!
-        arg1=x[:, :-self.num_classes, :]
-
-        print("a: " + str(self.a))
-        print("b: " + str(self.b))
-
-        for i, arg in enumerate(arg1.shape):
-            print("x[:, :-self.num_classes, :].shape[" + str(i) + ']: ' + str(arg))
-
-        arg2=self.dfl(arg1)
-
-        for i, arg in enumerate(arg2.shape):
-            print("dfl result.shape[" + str(i) + ']: ' + str(arg))
-        for i, arg in enumerate(self.anchors.shape):
-            print("self.anchors.shape[" + str(i) + ']: ' + str(arg))
-        for i, arg in enumerate(self.strides.shape):
-            print("self.strides.shape[" + str(i) + ']: ' + str(arg))
         dbox = dist2bbox(self.dfl(x[:, :-self.num_classes, :]), self.anchors, xywh=True,
                          dim=1) * self.strides  # Placeholder for dist2bbox function
 
@@ -221,6 +206,14 @@ def dist2bbox(distance, anchor_points, xywh=True, dim=-1):
         dim = distance.shape[-1] // 2
     lt = distance[..., :dim]
     rb = distance[..., dim:]
+    for i, arg in enumerate(distance.shape):
+        print("distance.shape[" + str(i) + ']: ' + str(arg))
+    for i, arg in enumerate(lt.shape):
+        print("lt.shape[" + str(i) + ']: ' + str(arg))
+    for i, arg in enumerate(lt.shape):
+        print("rb.shape[" + str(i) + ']: ' + str(arg))
+    for i, arg in enumerate(anchor_points.shape):
+        print("anchor_points.shape[" + str(i) + ']: ' + str(arg))
     x1y1 = anchor_points - lt
     x2y2 = anchor_points + rb
     if xywh:

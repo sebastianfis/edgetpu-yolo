@@ -94,8 +94,12 @@ class EdgeTPUModel:
         
         self.input_zero = self.input_details[0]['quantization'][1]
         self.input_scale = self.input_details[0]['quantization'][0]
-        self.output_zero = self.output_details[0]['quantization'][1]
-        self.output_scale = self.output_details[0]['quantization'][0]
+        if not self.sep_output:
+            self.output_zero = self.output_details[0]['quantization'][1]
+            self.output_scale = self.output_details[0]['quantization'][0]
+        else:
+            self.output_zero = self.output_details[:]['quantization'][1]
+            self.output_scale = self.output_details[:]['quantization'][0]
         
         # If the model isn't quantized then these should be zero
         # Check against small epsilon to avoid comparing float/int
@@ -177,7 +181,7 @@ class EdgeTPUModel:
         else:
             result = []
             for i in range(6):
-                result.append((common.output_tensor(self.interpreter, i).astype('float32') - self.output_zero) * self.output_scale)
+                result.append((common.output_tensor(self.interpreter, i).astype('float32') - self.output_zero[i]) * self.output_scale[i])
         if self.sep_output:
             if not self.decoder.initialized:
                 self.decoder.initialize(result, x.shape)

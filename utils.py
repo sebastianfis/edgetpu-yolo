@@ -114,9 +114,9 @@ class Seperate_Output_Decoder:
         for p in self.pos:
             if preds[p].shape[2] != 64:
                 strides.append(int(np.sqrt(self.img_h * self.img_w / preds[p].shape[1])))
-
-        for i, s in enumerate(strides):
-            print("s: " + str(strides[i]))
+        #
+        # for i, s in enumerate(strides):
+        #     print("s: " + str(strides[i]))
 
         self.dims = [(self.img_h // s, self.img_w // s) for s in strides]
         fake_feats = [np.zeros((1, 1, h, w)) for h, w in self.dims]
@@ -126,21 +126,33 @@ class Seperate_Output_Decoder:
         self.conv = Conv2d(self.reg_max, 1, 1, bias=False)
         param = np.arange(self.reg_max, dtype=np.float32)
         self.conv.weight[:] = param.reshape(1, self.reg_max, 1, 1)
-        self.b, _, self.a = x.shape
+        self.b, _, self.a = x.shape # batch, channels, anchors
 
         self.initialized=True
 
     def dfl(self, x):
+        assert self.initialized
         """Applies a transformer layer on input tensor 'x' and returns a tensor."""
         x_reshaped = x.reshape(self.b, 4, self.reg_max, self.a)
+        for i, arg in enumerate(x_reshaped.shape):
+            print("x_reshaped.shape[" + str(i) + ']: ' + str(arg))
 
         # Transpose x to (b, reg_max, 4, a)
         x_transposed = x_reshaped.transpose(0, 2, 1, 3)
+        for i, arg in enumerate(x_transposed.shape):
+            print("x_transposed.shape[" + str(i) + ']: ' + str(arg))
 
         # Apply softmax along axis 2 (originally axis 1 before transpose)
         x_softmax = softmax(x_transposed, axis=2)
-
-        return self.conv.forward(x_softmax).reshape(self.b, 4, self.a)
+        for i, arg in enumerate(x_softmax.shape):
+            print("x_softmax.shape[" + str(i) + ']: ' + str(arg))
+        x_conv = self.conv.forward(x_softmax)
+        for i, arg in enumerate(x_conv.shape):
+            print("x_conv.shape[" + str(i) + ']: ' + str(arg))
+        x_reshaped2 = x_conv.reshape(self.b, 4, self.a)
+        for i, arg in enumerate(x_reshaped2.shape):
+            print("x_reshaped2.shape[" + str(i) + ']: ' + str(arg))
+        return x_reshaped2
 
     def decode_bbox(self, preds):
         x = np.transpose(
@@ -148,6 +160,22 @@ class Seperate_Output_Decoder:
                 np.concatenate([preds[i] for i in self.pos[:len(self.pos) // 2]], axis=1),
                 np.concatenate([preds[i] for i in self.pos[len(self.pos) // 2:]], axis=1)], axis=2), axes=(0, 2, 1))
         # FIXME: Bis hier sind die Ergebnisse vergleichbar!!!
+        arg1=x[:, :-self.num_classes, :]
+
+        print("a: " + str(self.a))
+        print("b: " + str(self.b))
+
+        for i, arg in enumerate(arg1.shape):
+            print("x[:, :-self.num_classes, :].shape[" + str(i) + ']: ' + str(arg))
+
+        arg2=self.dfl(arg1)
+
+        for i, arg in enumerate(arg2.shape):
+            print("dfl result.shape[" + str(i) + ']: ' + str(arg))
+        for i, arg in enumerate(self.anchors.shape):
+            print("self.anchors.shape[" + str(i) + ']: ' + str(arg))
+        for i, arg in enumerate(self.strides.shape):
+            print("self.strides.shape[" + str(i) + ']: ' + str(arg))
         dbox = dist2bbox(self.dfl(x[:, :-self.num_classes, :]), self.anchors, xywh=True,
                          dim=1) * self.strides  # Placeholder for dist2bbox function
 

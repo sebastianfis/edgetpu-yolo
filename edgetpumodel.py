@@ -98,8 +98,11 @@ class EdgeTPUModel:
             self.output_zero = self.output_details[0]['quantization'][1]
             self.output_scale = self.output_details[0]['quantization'][0]
         else:
-            self.output_zero = self.output_details[:]['quantization'][1]
-            self.output_scale = self.output_details[:]['quantization'][0]
+            self.output_zero = []
+            self.output_scale = []
+            for i in range(6):
+                self.output_zero.append(self.output_details[i]['quantization'][1])
+                self.output_scale.append(self.output_details[i]['quantization'][0])
         
         # If the model isn't quantized then these should be zero
         # Check against small epsilon to avoid comparing float/int

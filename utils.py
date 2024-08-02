@@ -135,25 +135,14 @@ class Seperate_Output_Decoder:
         assert self.initialized
         """Applies a transformer layer on input tensor 'x' and returns a tensor."""
         x_reshaped = x.reshape(self.b, 4, self.reg_max, self.a)
-        for i, arg in enumerate(x_reshaped.shape):
-            print("x_reshaped.shape[" + str(i) + ']: ' + str(arg))
 
         # Transpose x to (b, reg_max, 4, a)
         x_transposed = x_reshaped.transpose(0, 2, 1, 3)
-        for i, arg in enumerate(x_transposed.shape):
-            print("x_transposed.shape[" + str(i) + ']: ' + str(arg))
 
         # Apply softmax along axis 2 (originally axis 1 before transpose)
         x_softmax = softmax(x_transposed, axis=2)
-        for i, arg in enumerate(x_softmax.shape):
-            print("x_softmax.shape[" + str(i) + ']: ' + str(arg))
-        x_conv = self.conv.forward(x_softmax)
-        for i, arg in enumerate(x_conv.shape):
-            print("x_conv.shape[" + str(i) + ']: ' + str(arg))
-        x_reshaped2 = x_conv.reshape(self.b, 4, self.a)
-        for i, arg in enumerate(x_reshaped2.shape):
-            print("x_reshaped2.shape[" + str(i) + ']: ' + str(arg))
-        return x_reshaped2
+
+        return self.conv.forward(x_softmax).reshape(self.b, 4, self.a)
 
     def decode_bbox(self, preds):
         x = np.transpose(
@@ -202,10 +191,8 @@ def dist2bbox(distance, anchor_points, xywh=True, dim=-1):
     """Transform distance(ltrb) to box(xywh or xyxy)."""
     for i, i_shape in enumerate(distance):
         print("distance (" + str(i) + "): " + str(i_shape))
-    if dim == -1:
-        dim = distance.shape[-1] // 2
-    lt = distance[..., :dim]
-    rb = distance[..., dim:]
+    lt, rb =np.array_split(distance, 2, axis=dim)
+
     for i, arg in enumerate(distance.shape):
         print("distance.shape[" + str(i) + ']: ' + str(arg))
     for i, arg in enumerate(lt.shape):

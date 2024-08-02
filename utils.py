@@ -249,6 +249,6 @@ class Conv2d:
             for i in range(height):
                 for j in range(width):
                     for k in range(self.in_channels):
-                        output[b, 1, i, j] += np.sum(
-                            x[b, k, i:i+1, j:j+1] * self.weight[1, k])
+                        output[b, 0, i, j] += np.sum(
+                            x[b, k, i:i+1, j:j+1] * self.weight[0, k])
         return output

@@ -114,17 +114,13 @@ class Seperate_Output_Decoder:
         for p in self.pos:
             if preds[p].shape[2] != 64:
                 strides.append(int(np.sqrt(self.img_h * self.img_w / preds[p].shape[1])))
-        #
-        # for i, s in enumerate(strides):
-        #     print("s: " + str(strides[i]))
-
         self.dims = [(self.img_h // s, self.img_w // s) for s in strides]
         fake_feats = [np.zeros((1, 1, h, w)) for h, w in self.dims]
         self.anchors, self.strides = (np.transpose(x, (1, 0))
                             for x in make_anchors(fake_feats, strides, 0.5))
-        self.anchors=np.expand_dims(self.anchors, 0)
+        self.anchors = np.expand_dims(self.anchors, 0)
         """Initialize a convolutional layer with a given number of input channels."""
-        self.conv = Conv2d(self.reg_max, 1, 1, bias=False)
+        self.conv = Conv2d(self.reg_max)
         param = np.arange(self.reg_max, dtype=np.float32)
         self.conv.weight[:] = param.reshape(1, self.reg_max, 1, 1)
         self.b, _, self.a = x.shape # batch, channels, anchors
@@ -239,35 +235,20 @@ def save_one_json(predn, jdict, path, class_map):
                       'score': round(p[4], 5)})
 
 class Conv2d:
-    def __init__(self, in_channels, out_channels, kernel_size, bias=True):
+    def __init__(self, in_channels):
         self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.kernel_size = kernel_size
-        self.bias = bias
-
         # Initialize weights
-        self.weight = np.zeros((out_channels, in_channels, kernel_size, kernel_size), dtype=np.float32)
-
-        if self.bias:
-            self.bias_term = np.zeros(out_channels, dtype=np.float32)
-        else:
-            self.bias_term = None
+        self.weight = np.zeros((1, in_channels, 1, 1), dtype=np.float32)
 
     def forward(self, x):
         # Naive implementation of forward pass
         batch_size, in_channels, height, width = x.shape
-        out_height = height - self.kernel_size + 1
-        out_width = width - self.kernel_size + 1
-        output = np.zeros((batch_size, self.out_channels, out_height, out_width), dtype=np.float32)
+        output = np.zeros((batch_size, 1, height, width), dtype=np.float32)
 
         for b in range(batch_size):
-            for o in range(self.out_channels):
-                for i in range(out_height):
-                    for j in range(out_width):
-                        for k in range(self.in_channels):
-                            output[b, o, i, j] += np.sum(
-                                x[b, k, i:i+self.kernel_size, j:j+self.kernel_size] * self.weight[o, k])
-                if self.bias:
-                    output[b, o] += self.bias_term[o]
-
+            for i in range(height):
+                for j in range(width):
+                    for k in range(self.in_channels):
+                        output[b, 1, i, j] += np.sum(
+                            x[b, k, i:i+1, j:j+1] * self.weight[1, k])
         return output

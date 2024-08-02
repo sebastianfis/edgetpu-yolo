@@ -189,8 +189,6 @@ def make_anchors(feats, strides, grid_cell_offset=0.5):
 
 def dist2bbox(distance, anchor_points, xywh=True, dim=-1):
     """Transform distance(ltrb) to box(xywh or xyxy)."""
-    for i, i_shape in enumerate(distance):
-        print("distance (" + str(i) + "): " + str(i_shape))
     lt, rb =np.array_split(distance, 2, axis=dim)
 
     for i, arg in enumerate(distance.shape):
@@ -206,8 +204,8 @@ def dist2bbox(distance, anchor_points, xywh=True, dim=-1):
     if xywh:
         c_xy = (x1y1 + x2y2) / 2
         wh = x2y2 - x1y1
-        return np.concatenate((c_xy, wh), axis=-1)  # xywh bbox
-    return np.concatenate((x1y1, x2y2), axis=-1)  # xyxy bbox
+        return np.concatenate((c_xy, wh), axis=dim)  # xywh bbox
+    return np.concatenate((x1y1, x2y2), axis=dim)  # xyxy bbox
 
 
 def xyxy2xywh(x):

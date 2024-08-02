@@ -149,10 +149,15 @@ class Seperate_Output_Decoder:
             np.concatenate([
                 np.concatenate([preds[i] for i in self.pos[:len(self.pos) // 2]], axis=1),
                 np.concatenate([preds[i] for i in self.pos[len(self.pos) // 2:]], axis=1)], axis=2), axes=(0, 2, 1))
-        # FIXME: Bis hier sind die Ergebnisse vergleichbar!!!
+
         dbox = dist2bbox(self.dfl(x[:, :-self.num_classes, :]), self.anchors, xywh=True,
                          dim=1) * self.strides  # Placeholder for dist2bbox function
-
+        # FIXME: Bis hier sind die Ergebnisse vergleichbar!!!
+        for i, arg in enumerate(dbox.shape):
+            print("dbox.shape[" + str(i) + ']: ' + str(arg))
+        arg1=np.concatenate((dbox, 1 / (1 + np.exp(-x[:, -self.num_classes:, :]))), axis=1)
+        for i, arg in enumerate(arg1.shape):
+            print("return_result.shape[" + str(i) + ']: ' + str(arg))
         return np.concatenate((dbox, 1 / (1 + np.exp(-x[:, -self.num_classes:, :]))), axis=1)
 
 def softmax(x, axis):
@@ -190,15 +195,6 @@ def make_anchors(feats, strides, grid_cell_offset=0.5):
 def dist2bbox(distance, anchor_points, xywh=True, dim=-1):
     """Transform distance(ltrb) to box(xywh or xyxy)."""
     lt, rb =np.array_split(distance, 2, axis=dim)
-
-    for i, arg in enumerate(distance.shape):
-        print("distance.shape[" + str(i) + ']: ' + str(arg))
-    for i, arg in enumerate(lt.shape):
-        print("lt.shape[" + str(i) + ']: ' + str(arg))
-    for i, arg in enumerate(lt.shape):
-        print("rb.shape[" + str(i) + ']: ' + str(arg))
-    for i, arg in enumerate(anchor_points.shape):
-        print("anchor_points.shape[" + str(i) + ']: ' + str(arg))
     x1y1 = anchor_points - lt
     x2y2 = anchor_points + rb
     if xywh:

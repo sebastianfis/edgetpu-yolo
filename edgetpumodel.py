@@ -188,7 +188,7 @@ class EdgeTPUModel:
         self.inference_time = time.time() - tstart
         
         if with_nms:
-        
+
             tstart = time.time()
             if self.v8 or self.sep_output:
                 nms_result = non_max_suppresion_v8(result, self.conf_thresh, self.iou_thresh, self.filter_classes,
